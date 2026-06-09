@@ -29,6 +29,13 @@ jobs:
         env:
           NIX_FIRST_BUILD_UID: 400
 
+      - name: Ensure Nix daemon mode
+        run: echo "NIX_REMOTE=daemon" >> "$GITHUB_ENV"
+
+      - name: Restart nix-daemon on macOS
+        if: runner.os == 'macOS'
+        run: sudo launchctl kickstart -k system/org.nixos.nix-daemon || true
+
       - name: Build package
         run: nix build .#pandoc --print-build-logs
 
