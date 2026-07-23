@@ -50,7 +50,7 @@ let
 			sha256 = "6334f4d9af7c9e37e761dfad56fa5507685f6d29724ebf31c4be6d5c654a3161";
 			archiveType = "zip";
 		};
-		"pandoc-${version}.wasm.zip" = {
+		"pandoc-wasm.zip" = {
 			sha256 = "e0865674db6fa2698d29811ca2fcb91ab00a2f8b7d0220eae4ea28405d9cab2b";
 			archiveType = "zip";
 		};
