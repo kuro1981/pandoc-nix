@@ -20,7 +20,7 @@ readonly RELEASE_ASSETS=(
   "pandoc-%s-windows-x86_64.zip"
   "pandoc-%s-x86_64-macOS.pkg"
   "pandoc-%s-x86_64-macOS.zip"
-  "pandoc-%s.wasm.zip"
+  "pandoc-wasm.zip"
 )
 
 log_info() { echo -e "${GREEN}[INFO]${NC} $1"; }
