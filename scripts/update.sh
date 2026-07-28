@@ -93,9 +93,17 @@ update_asset_hash() {
   local temp_file
   temp_file=$(mktemp)
 
-  awk -v asset_name="$asset_name" -v hash_hex="$hash_hex" '
-    $0 ~ "\"" asset_name "\" = \\{" { in_asset = 1 }
-    in_asset && $0 ~ /sha256 = "/ {
+  # Asset keys in package.nix use Nix string interpolation ("${version}").
+  # Replace the version number in asset_name with the literal Nix template
+  # so the search key matches what is actually written in the source file.
+  local current_version
+  current_version=$(sed -n 's/.*version = "\([^"]*\)".*/\1/p' package.nix | head -1)
+  local version_placeholder='${version}'
+  local nix_key="${asset_name/$current_version/$version_placeholder}"
+
+  awk -v search_key="\"${nix_key}\" = {" -v hash_hex="$hash_hex" '
+    index($0, search_key) > 0 { in_asset = 1 }
+    in_asset && /sha256 = "/ {
       sub(/sha256 = "[^"]*";/, "sha256 = \"" hash_hex "\";")
       in_asset = 0
     }
