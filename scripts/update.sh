@@ -9,6 +9,7 @@ readonly NC='\033[0m'
 readonly GITHUB_REPO="jgm/pandoc"
 readonly RELEASE_API_BASE="repos/${GITHUB_REPO}/releases"
 
+# Assets whose names follow a stable, version-parameterised pattern.
 readonly RELEASE_ASSETS=(
   "pandoc-%s-1-amd64.deb"
   "pandoc-%s-1-arm64.deb"
@@ -20,12 +21,26 @@ readonly RELEASE_ASSETS=(
   "pandoc-%s-windows-x86_64.zip"
   "pandoc-%s-x86_64-macOS.pkg"
   "pandoc-%s-x86_64-macOS.zip"
-  "pandoc-wasm.zip"
 )
 
-log_info() { echo -e "${GREEN}[INFO]${NC} $1"; }
-log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
-log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
+# Upstream has renamed the WebAssembly asset repeatedly
+# (3.10: pandoc-3.10.wasm.zip, 3.10.1: pandoc-wasm.zip,
+#  3.10.2: pandoc-wasm-3.10.2.zip), so it is resolved from the release
+# listing by pattern instead of being hardcoded.
+readonly WASM_ASSET_PATTERN='^pandoc.*wasm.*\.zip$'
+
+# Populated by fetch_release_json(); holds the release payload so the assets
+# are queried with a single API call.
+RELEASE_JSON_FILE=""
+
+log_info() { echo -e "${GREEN}[INFO]${NC} $1" >&2; }
+log_warn() { echo -e "${YELLOW}[WARN]${NC} $1" >&2; }
+log_error() { echo -e "${RED}[ERROR]${NC} $1" >&2; }
+
+cleanup() {
+  [[ -n "$RELEASE_JSON_FILE" ]] && rm -f "$RELEASE_JSON_FILE"
+}
+trap cleanup EXIT
 
 ensure_in_repository_root() {
   if [[ ! -f "flake.nix" || ! -f "package.nix" ]]; then
@@ -63,17 +78,21 @@ get_latest_version() {
   echo "$tag"
 }
 
-release_json() {
+fetch_release_json() {
   local version="$1"
-  gh api "${RELEASE_API_BASE}/tags/${version}"
+  RELEASE_JSON_FILE=$(mktemp)
+  if ! gh api "${RELEASE_API_BASE}/tags/${version}" >"$RELEASE_JSON_FILE"; then
+    log_error "Failed to fetch release ${version} from ${GITHUB_REPO}"
+    return 1
+  fi
 }
 
 get_asset_digest_hex() {
-  local version="$1"
-  local asset_name="$2"
+  local asset_name="$1"
 
   local digest
-  digest=$(release_json "$version" | jq -r --arg name "$asset_name" '.assets[] | select(.name == $name) | .digest' | head -1)
+  digest=$(jq -r --arg name "$asset_name" \
+    '[.assets[] | select(.name == $name) | .digest] | first // ""' "$RELEASE_JSON_FILE")
   if [[ -z "$digest" || "$digest" == "null" ]]; then
     log_error "Asset digest not found for ${asset_name}"
     return 1
@@ -82,9 +101,54 @@ get_asset_digest_hex() {
   echo "${digest#sha256:}"
 }
 
+find_wasm_asset_name() {
+  jq -r --arg re "$WASM_ASSET_PATTERN" \
+    '[.assets[].name | select(test($re))] | first // ""' "$RELEASE_JSON_FILE"
+}
+
+get_current_wasm_key() {
+  sed -n 's/^[[:space:]]*"\([^"]*wasm[^"]*\)" = {.*/\1/p' package.nix | head -1
+}
+
+# Asset keys in package.nix use Nix string interpolation ("${version}").
+# Replace the version number in an asset name with the literal Nix template
+# so the search key matches what is actually written in the source file.
+to_nix_asset_key() {
+  local asset_name="$1"
+  local version="$2"
+  local version_placeholder='${version}'
+  echo "${asset_name/$version/$version_placeholder}"
+}
+
 update_package_version() {
   local version="$1"
   sed -i.bak "s/version = \".*\";/version = \"${version}\";/" package.nix
+}
+
+rename_asset_key() {
+  local old_key="$1"
+  local new_key="$2"
+
+  [[ "$old_key" == "$new_key" ]] && return 0
+
+  local temp_file
+  temp_file=$(mktemp)
+
+  awk -v old_key="\"${old_key}\" = {" -v new_key="\"${new_key}\" = {" '
+    index($0, old_key) > 0 {
+      sub(/"[^"]*" = \{/, new_key)
+      renamed = 1
+    }
+    { print }
+    END { exit(renamed ? 0 : 1) }
+  ' package.nix >"$temp_file" || {
+    rm -f "$temp_file"
+    log_error "Could not rename asset key \"${old_key}\" in package.nix"
+    return 1
+  }
+
+  mv "$temp_file" package.nix
+  log_info "Renamed asset key \"${old_key}\" -> \"${new_key}\""
 }
 
 update_asset_hash() {
@@ -93,24 +157,58 @@ update_asset_hash() {
   local temp_file
   temp_file=$(mktemp)
 
-  # Asset keys in package.nix use Nix string interpolation ("${version}").
-  # Replace the version number in asset_name with the literal Nix template
-  # so the search key matches what is actually written in the source file.
-  local current_version
-  current_version=$(sed -n 's/.*version = "\([^"]*\)".*/\1/p' package.nix | head -1)
-  local version_placeholder='${version}'
-  local nix_key="${asset_name/$current_version/$version_placeholder}"
+  local nix_key
+  nix_key=$(to_nix_asset_key "$asset_name" "$(get_current_version)")
 
   awk -v search_key="\"${nix_key}\" = {" -v hash_hex="$hash_hex" '
     index($0, search_key) > 0 { in_asset = 1 }
     in_asset && /sha256 = "/ {
       sub(/sha256 = "[^"]*";/, "sha256 = \"" hash_hex "\";")
       in_asset = 0
+      replaced = 1
     }
     { print }
-  ' package.nix > "$temp_file"
+    END { exit(replaced ? 0 : 1) }
+  ' package.nix >"$temp_file" || {
+    rm -f "$temp_file"
+    log_error "Asset key \"${nix_key}\" not found in package.nix; hash not updated."
+    return 1
+  }
 
   mv "$temp_file" package.nix
+}
+
+sync_asset() {
+  local asset_name="$1"
+
+  log_info "Fetching digest for ${asset_name}"
+
+  local digest_hex
+  digest_hex=$(get_asset_digest_hex "$asset_name") || return 1
+  update_asset_hash "$asset_name" "$digest_hex"
+}
+
+sync_wasm_asset() {
+  local new_version="$1"
+
+  local asset_name
+  asset_name=$(find_wasm_asset_name)
+  if [[ -z "$asset_name" ]]; then
+    log_warn "Release ${new_version} ships no WebAssembly asset; leaving the existing entry unchanged."
+    return 0
+  fi
+
+  local current_key new_key
+  current_key=$(get_current_wasm_key)
+  new_key=$(to_nix_asset_key "$asset_name" "$new_version")
+
+  if [[ -z "$current_key" ]]; then
+    log_warn "No WebAssembly entry found in package.nix; skipping ${asset_name}."
+    return 0
+  fi
+
+  rename_asset_key "$current_key" "$new_key"
+  sync_asset "$asset_name"
 }
 
 cleanup_backup_files() {
@@ -176,19 +274,19 @@ parse_arguments() {
 update_to_version() {
   local new_version="$1"
 
+  fetch_release_json "$new_version"
+
   log_info "Updating package.nix to Pandoc ${new_version}"
   update_package_version "$new_version"
 
-  local tmpl
+  local tmpl asset_name
   for tmpl in "${RELEASE_ASSETS[@]}"; do
-    local asset_name
+    # shellcheck disable=SC2059
     asset_name=$(printf "$tmpl" "$new_version")
-    log_info "Fetching digest for ${asset_name}"
-
-    local digest_hex
-    digest_hex=$(get_asset_digest_hex "$new_version" "$asset_name")
-    update_asset_hash "$asset_name" "$digest_hex"
+    sync_asset "$asset_name"
   done
+
+  sync_wasm_asset "$new_version"
 
   cleanup_backup_files
   update_flake_lock
