@@ -7,51 +7,51 @@
 }:
 
 let
-	version = "3.10.1";
+	version = "3.10.2";
 
 	releaseAssets = {
 		"pandoc-${version}-1-amd64.deb" = {
-			sha256 = "b419369915e0f3181be0afdb040ec8ecc6b70e72e5992652a0d83aed9e6bc109";
+			sha256 = "6c06b69b49ae95087573631a6fcafb233ab7ab51e5cfa73f7539d6c964a2640d";
 			archiveType = "deb";
 		};
 		"pandoc-${version}-1-arm64.deb" = {
-			sha256 = "14add8849fda702051f8f4da7b080dfab91ac7a11144602a9643e065d3b4c206";
+			sha256 = "868c7675806237dd21711e3890e82f2844e011c8f542a1ddc6245df4324dd6b5";
 			archiveType = "deb";
 		};
 		"pandoc-${version}-arm64-macOS.pkg" = {
-			sha256 = "768f16693ca5d2c44cefb8db811bf5c75a15c9fce87c9f46133c79a9a4ac9ec3";
+			sha256 = "0fa0892a05b1545948cf1ef5ef962f0c000b057b3c438510e1596c6f4b9d967d";
 			archiveType = "pkg";
 		};
 		"pandoc-${version}-arm64-macOS.zip" = {
-			sha256 = "8607160694a70ed9aa63776caa44acef3afb729c379c7c283724b7e27455bfda";
+			sha256 = "a30bd546062f0b29c25f45a71f951b7a1cf4f998d5b43974ea2c2416133f2e99";
 			archiveType = "zip";
 		};
 		"pandoc-${version}-linux-amd64.tar.gz" = {
-			sha256 = "72948bf5784f560d5ad1876709daca27e0667f262da727bb33f77b58e52df2f5";
+			sha256 = "c7edd535941c48be6a362081a748272837de81ae11777202d9c341d3d8261c9a";
 			archiveType = "tar";
 		};
 		"pandoc-${version}-linux-arm64.tar.gz" = {
-			sha256 = "cd3963da375793a4804c65ae538b4f7b9c23f87cac7f6c74a1cf5e2fff7e8d59";
+			sha256 = "1c4d69f2a092bd47cb180e58a4aab7b9637101ced928252458c7d41a7f7fa71d";
 			archiveType = "tar";
 		};
 		"pandoc-${version}-windows-x86_64.msi" = {
-			sha256 = "cd2fb4a07bd22139aea56ec43763a61602aaddc9d58b96f7811d71585355e214";
+			sha256 = "937ed557c4565f4e7c7e1ee59cb059dfe8aafc9adb5b422bfdf688fcaee63a0b";
 			archiveType = "msi";
 		};
 		"pandoc-${version}-windows-x86_64.zip" = {
-			sha256 = "4725a1883e2171c2e181e6fd45003acb59ca4e9cbe031fdd3b79ef0d697d36aa";
+			sha256 = "52487faaa63f8cef5363d5a771097da001228d61c6f44f32ed41b27a98c0278c";
 			archiveType = "zip";
 		};
 		"pandoc-${version}-x86_64-macOS.pkg" = {
-			sha256 = "174f7e2c818be48dc003090178f984ceeca54ff78b94127f0dbe56748d2c5f26";
+			sha256 = "d09aa0969d7dd5b3217f9f0121163ed522f04aee7bb185ac19ce29e7a8a50488";
 			archiveType = "pkg";
 		};
 		"pandoc-${version}-x86_64-macOS.zip" = {
-			sha256 = "76430dd0ce5305fc4b91d8c0d5c22a00c8d2197ad3cef3937f65048f087164f7";
+			sha256 = "437d378af72e9648f6fb42c170031218a3c2f31cf5089234cf2d0413f91481d0";
 			archiveType = "zip";
 		};
-		"pandoc-wasm.zip" = {
-			sha256 = "cdf1ec6303fb0aa1fc508c06136b80db875efa2b28f6a8ee706919e012b022cf";
+		"pandoc-wasm-${version}.zip" = {
+			sha256 = "8a35ca735b536cd0e484d12a62d19a6bdcfacf47738d83a58bdd311dd62540ac";
 			archiveType = "zip";
 		};
 	};
